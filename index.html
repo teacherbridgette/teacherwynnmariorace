@@ -26,7 +26,6 @@
             background: rgba(0,0,0,0.7); 
         }
 
-        /* BIG MUTE TOGGLE */
         #mute-container {
             position: fixed; top: 20px; right: 20px; z-index: 2500;
             background: #fff; border: 5px solid #000;
@@ -35,7 +34,6 @@
             cursor: pointer; font-size: 2rem;
         }
 
-        /* SELECTION SCREEN */
         .selection-wrapper {
             display: flex; gap: 40px; background: #fff;
             padding: 30px; border: 8px solid #000;
@@ -45,7 +43,6 @@
         .char-card { background: #eee; padding: 15px; border: 5px solid #999; cursor: pointer; text-align: center; }
         .char-card img { height: 120px; image-rendering: pixelated; }
 
-        /* RACE TRACK & BUSHES */
         #game-container { position: absolute; inset: 0; z-index: 150; display: none; flex-direction: column; padding: 10px; }
         .race-track { height: 220px; width: 100%; border-bottom: 40px solid #8B4513; position: relative; margin: 5px 0; overflow: visible; }
         .race-track::after { content: ''; position: absolute; bottom: 0; left: 0; width: 100%; height: 15px; background: #2ecc71; z-index: 3; }
@@ -66,7 +63,6 @@
         .jump { animation: jumpAnim 0.5s ease; }
         @keyframes jumpAnim { 0%, 100% { bottom: 0; } 50% { bottom: 100px; } }
 
-        /* SOLID BIG QUIZ BOXES */
         .quiz-area { display: flex; gap: 30px; width: 100%; flex-grow: 1; padding: 20px; }
         .p-box { 
             flex: 1; background: #ffffff; border: 10px solid #000; 
@@ -81,13 +77,12 @@
             background: #f1c40f; border: 6px solid #000; font-weight: bold;
         }
 
-        /* EDITOR MODAL */
         #editor-screen { display: none; background: #222; }
         .editor-container { background: #fff; width: 90%; height: 80%; overflow-y: auto; padding: 40px; border: 10px solid #ff0000; }
-        .edit-item { border-bottom: 4px solid #eee; padding: 20px 0; display: flex; flex-direction: column; color: #000; }
+        .edit-item { border-bottom: 4px solid #eee; padding: 20px 0; display: flex; flex-direction: column; color: #000; position: relative; }
         .edit-item input { margin: 10px 0; padding: 15px; font-size: 1rem; border: 3px solid #000; width: 100%; }
+        .delete-btn { position: absolute; right: 0; top: 10px; background: red; color: white; border: none; padding: 5px 10px; cursor: pointer; font-size: 0.5rem; }
 
-        /* VICTORY */
         #victory-screen { display: none; z-index: 2000; background: #000; color: #fff; }
         .win-box img { height: 400px; margin: 30px; image-rendering: pixelated; }
 
@@ -180,12 +175,21 @@
         ];
 
         let p1Char, p2Char, p1Pos = 0, p2Pos = 0, isMuted = false;
-        let questionBank = [
+
+        // --- CACHE / STORAGE LOGIC ---
+        const defaultQuestions = [
             { q: "What is 10 + 10?", a: "20", o: ["20", "15", "25", "30"] },
             { q: "Mario's hat color?", a: "Red", o: ["Red", "Green", "Blue", "Yellow"] },
             { q: "Who is Mario's brother?", a: "Luigi", o: ["Luigi", "Wario", "Peach", "Bowser"] },
             { q: "Collect what for points?", a: "Coins", o: ["Coins", "Goombas", "Bushes", "Pipes"] }
         ];
+
+        // Load from storage or use defaults
+        let questionBank = JSON.parse(localStorage.getItem('marioMazeData')) || defaultQuestions;
+
+        function saveToStorage() {
+            localStorage.setItem('marioMazeData', JSON.stringify(questionBank));
+        }
 
         function toggleMute(e) {
             e.stopPropagation();
@@ -208,19 +212,38 @@
             questionBank.forEach((item, i) => {
                 const div = document.createElement('div'); div.className = 'edit-item';
                 div.innerHTML = `
+                    <button class="delete-btn" onclick="removeQuestion(${i})">DELETE</button>
                     <strong>Question ${i+1}</strong>
-                    <input type="text" value="${item.q}" onchange="questionBank[${i}].q=this.value" placeholder="Question">
-                    <input type="text" value="${item.a}" onchange="questionBank[${i}].a=this.value; questionBank[${i}].o[0]=this.value" placeholder="Correct Answer" style="border-color:#2ecc71">
-                    <input type="text" value="${item.o[1]}" onchange="questionBank[${i}].o[1]=this.value" placeholder="Wrong Choice 1">
-                    <input type="text" value="${item.o[2]}" onchange="questionBank[${i}].o[2]=this.value" placeholder="Wrong Choice 2">
-                    <input type="text" value="${item.o[3]}" onchange="questionBank[${i}].o[3]=this.value" placeholder="Wrong Choice 3">
+                    <input type="text" value="${item.q}" oninput="updateQ(${i}, 'q', this.value)" placeholder="Question">
+                    <input type="text" value="${item.a}" oninput="updateCorrect(${i}, this.value)" placeholder="Correct Answer" style="border-color:#2ecc71">
+                    <input type="text" value="${item.o[1]}" oninput="updateOption(${i}, 1, this.value)" placeholder="Wrong Choice 1">
+                    <input type="text" value="${item.o[2]}" oninput="updateOption(${i}, 2, this.value)" placeholder="Wrong Choice 2">
+                    <input type="text" value="${item.o[3]}" oninput="updateOption(${i}, 3, this.value)" placeholder="Wrong Choice 3">
                 `;
                 list.appendChild(div);
             });
         }
 
+        function updateQ(index, key, val) { questionBank[index][key] = val; saveToStorage(); }
+        function updateCorrect(index, val) { 
+            questionBank[index].a = val; 
+            questionBank[index].o[0] = val; 
+            saveToStorage(); 
+        }
+        function updateOption(qIndex, optIndex, val) { 
+            questionBank[qIndex].o[optIndex] = val; 
+            saveToStorage(); 
+        }
+
         function addQuestion() {
             questionBank.push({ q: "New Question?", a: "Correct", o: ["Correct", "Wrong1", "Wrong2", "Wrong3"] });
+            saveToStorage();
+            renderEditor();
+        }
+
+        function removeQuestion(i) {
+            questionBank.splice(i, 1);
+            saveToStorage();
             renderEditor();
         }
 
@@ -262,10 +285,15 @@
         }
 
         function loadQ(p) {
+            if (questionBank.length === 0) return;
             const q = questionBank[Math.floor(Math.random() * questionBank.length)];
             document.getElementById(`p${p}-q`).innerText = q.q;
             const box = document.getElementById(`p${p}-opts`); box.innerHTML = '';
-            [...q.o].sort(() => Math.random() - 0.5).forEach(opt => {
+            
+            // Create a shuffled copy of options
+            const shuffledOptions = [...q.o].sort(() => Math.random() - 0.5);
+            
+            shuffledOptions.forEach(opt => {
                 const btn = document.createElement('button'); btn.className = 'opt-btn'; btn.innerText = opt;
                 btn.onclick = () => { 
                     if (opt === q.a) { 
@@ -294,8 +322,16 @@
         function move(p) {
             const sprite = document.getElementById(`p${p}-sprite`);
             sprite.classList.add('jump'); setTimeout(() => sprite.classList.remove('jump'), 500);
-            if (p === 1) { p1Pos += 10; sprite.style.left = p1Pos + '%'; if(p1Pos >= 85) win(p1Char); }
-            else { p2Pos += 10; sprite.style.left = p2Pos + '%'; if(p2Pos >= 85) win(p2Char); }
+            if (p === 1) { 
+                p1Pos += 10; 
+                sprite.style.left = p1Pos + '%'; 
+                if(p1Pos >= 85) win(p1Char); 
+            }
+            else { 
+                p2Pos += 10; 
+                sprite.style.left = p2Pos + '%'; 
+                if(p2Pos >= 85) win(p2Char); 
+            }
         }
 
         function win(winner) {
